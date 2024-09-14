@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useDispatch } from 'react-redux'
+import { useSearchParams } from 'react-router-dom'
 
+import userApi, { useGetUsersQuery } from '../redux/user-api'
 import Checkbox from './checkbox'
 import Pagination from './pagination'
 import Search from './search'
@@ -8,38 +11,33 @@ import UserListItem from './user-list-item'
 const rowsPerPage = 10
 
 const UserList = () => {
-  const [page, setPage] = useState(1)
-  const [users, setUsers] = useState([])
-  const [searchText, setSearchText] = useState('')
+  const dispatch = useDispatch()
   const [checked, setChecked] = useState('unchecked')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const { data: users = [], isLoading, error } = useGetUsersQuery()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  useEffect(() => {
-    async function fetchUsers() {
-      try {
-        setLoading(true)
-        const res = await fetch(
-          'https://geektrust.s3-ap-southeast-1.amazonaws.com/adminui-problem/members.json',
-        )
-        if (!res.ok) {
-          throw new Error(`Error: ${res.status}`)
-        }
-        const data = await res.json()
-        setUsers(data.map((user) => ({ ...user, checked: false })))
-      } catch (error) {
-        setError(error.message)
-      } finally {
-        setLoading(false)
-      }
+  const page = parseInt(searchParams.get('page')) || 1
+  const query = searchParams.get('query') || ''
+
+  const startIndex = (page - 1) * rowsPerPage
+  const endIndex = startIndex + rowsPerPage
+  const filteredUsersIndexes = []
+  const filteredUsers = users.filter((user, index) => {
+    if (
+      user.name.toLowerCase().includes(query) ||
+      user.email.includes(query) ||
+      user.role.includes(query)
+    ) {
+      filteredUsersIndexes.push(index)
+      return true
     }
-    fetchUsers()
-  }, [])
+
+    return false
+  })
+  const usersToRender = filteredUsers.slice(startIndex, endIndex)
 
   useEffect(() => {
-    const startIndex = (page - 1) * rowsPerPage
-    const endIndex = startIndex + rowsPerPage
-    const usersOnPage = users.slice(startIndex, endIndex)
+    const usersOnPage = filteredUsers.slice(startIndex, endIndex)
     const checkedCount = usersOnPage.filter((user) => user.checked).length
 
     if (checkedCount === 0) {
@@ -49,88 +47,88 @@ const UserList = () => {
     } else {
       setChecked('indeterminate')
     }
-  }, [page, users])
+  }, [page, filteredUsers, startIndex, endIndex])
 
   const onChange = () => {
-    const startIndex = (page - 1) * rowsPerPage
-    const endIndex = startIndex + rowsPerPage
-
-    setUsers((users) =>
-      users.map((user, index) => {
-        if (index >= startIndex && index < endIndex) {
-          if (checked === 'unchecked') {
-            return { ...user, checked: true }
-          } else {
-            return { ...user, checked: false }
-          }
+    dispatch(
+      userApi.util.updateQueryData('getUsers', undefined, (draftUsers) => {
+        for (const index of filteredUsersIndexes.slice(startIndex, endIndex)) {
+          draftUsers[index].checked = checked === 'unchecked'
         }
-        return user
       }),
     )
-    setChecked(checked === 'unchecked' ? 'checked' : 'unchecked')
   }
 
   const handleSelect = (_, userId) => {
-    setUsers((users) =>
-      users.map((user) => {
-        if (user.id === userId) {
-          return { ...user, checked: !user.checked }
-        }
-        return user
+    dispatch(
+      userApi.util.updateQueryData('getUsers', undefined, (draftUsers) => {
+        const user = draftUsers.find((user) => user.id === userId)
+        user.checked = !user.checked
       }),
     )
   }
 
   const changePage = (page) => {
-    setPage(page)
+    setSearchParams((params) => {
+      params.set('page', page)
+      return params
+    })
   }
 
   const deleteSelected = () => {
-    setUsers((users) => users.filter((user) => !user.checked))
-    setPage(1)
+    dispatch(
+      userApi.util.updateQueryData('getUsers', undefined, (draftUsers) => {
+        draftUsers = draftUsers.filter((user) => !user.checked)
+        return draftUsers
+      }),
+    )
+    setSearchParams((params) => {
+      params.set('page', 1)
+      return params
+    })
   }
 
   const deleteUser = (userId) => {
-    setUsers((users) => users.filter((user) => user.id !== userId))
-  }
-
-  const onSearch = (query) => {
-    setSearchText(query.toLowerCase())
-    setPage(1)
-  }
-
-  const updateUser = (userId, fields) => {
-    setUsers((users) =>
-      users.map((user) => {
-        if (user.id === userId) {
-          return { ...user, ...fields }
-        }
-        return user
+    dispatch(
+      userApi.util.updateQueryData('getUsers', undefined, (draftUsers) => {
+        draftUsers = draftUsers.filter((user) => user.id !== userId)
+        return draftUsers
       }),
     )
   }
 
-  const startIndex = (page - 1) * rowsPerPage
-  const endIndex = startIndex + rowsPerPage
-  const filteredUsers = users.filter(
-    (user) =>
-      user.name.toLowerCase().includes(searchText) ||
-      user.email.includes(searchText) ||
-      user.role.includes(searchText),
-  )
-  const usersToRender = filteredUsers.slice(startIndex, endIndex)
+  const onSearch = (query) => {
+    setSearchParams((params) => {
+      params.set('page', 1)
+      query ? params.set('query', query) : params.delete('query')
+      return params
+    })
+  }
 
-  if (loading) {
+  const updateUser = (userId, fields) => {
+    dispatch(
+      userApi.util.updateQueryData('getUsers', undefined, (draftUsers) => {
+        const user = draftUsers.find((user) => user.id === userId)
+        Object.assign(user, fields)
+      }),
+    )
+  }
+
+  if (isLoading) {
     return <h1>Loading...</h1>
   }
 
   if (error) {
-    return <h1>{error}</h1>
+    return <h1>{error.error}</h1>
   }
 
   return (
     <div className="mx-auto flex min-h-screen max-w-screen-lg flex-col gap-2 p-2">
       <Search onSearch={onSearch} />
+      <p>
+        total({filteredUsers.length}) selected(
+        {users.filter((user) => user.checked).length})
+      </p>
       <div className="overflow-x-auto">
         <table className="w-full table-auto divide-y border">
           <thead>

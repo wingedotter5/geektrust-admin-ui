@@ -1,7 +1,23 @@
 import { createRoot } from 'react-dom/client'
+import { Provider } from 'react-redux'
+import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 
 import './index.css'
 
 import UserList from './components/user-list'
+import store from './redux/store'
 
-createRoot(document.getElementById('root')).render(<UserList />)
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: (
+      <Provider store={store}>
+        <UserList />
+      </Provider>
+    ),
+  },
+])
+
+createRoot(document.getElementById('root')).render(
+  <RouterProvider router={router} />,
+)

@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 
 import './index.css'
 
+import RootBoundary from './components/root-boundary'
 import UserList from './components/user-list'
 import store from './redux/store'
 
@@ -16,6 +17,7 @@ const router = createBrowserRouter(
           <UserList />
         </Provider>
       ),
+      errorElement: <RootBoundary />,
     },
   ],
   {

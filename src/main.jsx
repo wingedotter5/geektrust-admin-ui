@@ -7,16 +7,21 @@ import './index.css'
 import UserList from './components/user-list'
 import store from './redux/store'
 
-const router = createBrowserRouter([
+const router = createBrowserRouter(
+  [
+    {
+      path: '/',
+      element: (
+        <Provider store={store}>
+          <UserList />
+        </Provider>
+      ),
+    },
+  ],
   {
-    path: '/',
-    element: (
-      <Provider store={store}>
-        <UserList />
-      </Provider>
-    ),
+    basename: '/geektrust-admin-ui/',
   },
-])
+)
 
 createRoot(document.getElementById('root')).render(
   <RouterProvider router={router} />,
